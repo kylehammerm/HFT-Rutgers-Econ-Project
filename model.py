@@ -1,47 +1,53 @@
-import mesa
-import numpy as np
-import matplotlib.pyplot as plt
+import random
+from mesa import Model
+from mesa.datacollection import DataCollector
+from agents import TraderAgent, TrendFollowingStrategy, MeanReversionStrategy
 
-from agents import Spice, Sugar, Trader
-
-class SugarScapeG1mt(mesa.Model):
-    '''
-    A model class to manage Sugarscape with Traders
-    '''
-    def __init__(self,width=50,height=50):
-
+class AssetMarket(Model):
+    def __init__(self, initial_price=100.0, price_impact=0.5, num_agents=100):
         super().__init__()
+        self.initial_price = initial_price
+        self.price = initial_price
+        self.last_price = initial_price
+        self.price_impact = price_impact
+        self.bias_direction = 0
+        self.bias_active = False
+        self.tick = 0
+        self.trades_this_tick = 0
 
-        self.width = width
-        self.height = height
+        for i in range(num_agents):
+            strategy = TrendFollowingStrategy() if i % 2 == 0 else MeanReversionStrategy()
+            agent = TraderAgent(i, self, strategy)
+            self.agents.add(agent)
 
-        self.grid = mesa.space.MultiGrid(self.width,self.height,torus=False)
+        self.datacollector = DataCollector(
+            model_reporters={
+                "Price": lambda m: m.price,
+                "Trades": lambda m: m.trades_this_tick
+            },
+            agent_reporters={
+                "Wealth": lambda a: a.wealth
+            }
+        )
 
-        sugar_distribution = np.genfromtxt("maps/sugar-map.txt")
-        spice_distribution = np.flip(sugar_distribution,1)
-        
-        
+    def step(self):
+        self.tick += 1
+        if (self.tick - 1) % 10 == 0:
+            self.bias_direction = random.choice([1, -1])
+            self.bias_active = True
 
-        agent_id = 0
+        self.last_price = self.price
+        price_change = random.gauss(0, 1)
+        if self.bias_active:
+            price_change += 0.5 * self.bias_direction
+        self.price = max(self.price + price_change, 0)
 
-        # This is a built in mesa function to loop through a whole grid
-        for _, (x,y) in self.grid.coord_iter():
-            max_sugar = sugar_distribution[x,y]
-            if max_sugar>0:
-                sugar = Sugar(agent_id,self,(x,y),max_sugar)
-                self.grid.place_agent(sugar,(x,y))
-                agent_id += 1
-            
-            max_spice = spice_distribution[x,y]
-            if max_spice >0:
-                spice = Spice(agent_id,self,(x,y),max_spice)
-                self.grid.place_agent(spice,(x,y))
-                agent_id += 1
-        
-        for _, (x,y) in self.grid.coord_iter():
-            print(_,(x,y))
+        if self.bias_active:
+            if self.price >= 1.1 * self.initial_price or self.price <= 0.9 * self.initial_price:
+                self.bias_active = False
 
+        self.trades_this_tick = 0
+        for agent_set in self.agents_by_type.values():
+            agent_set.shuffle_do("step")
 
-
-if __name__ == "__main__":
-    model = SugarScapeG1mt()
+        self.datacollector.collect(self)
