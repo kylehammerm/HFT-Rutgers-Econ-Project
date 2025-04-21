@@ -220,3 +220,83 @@ class ArbitrageStrategy(TradingStrategy):
         if action:
             return (action, units)
         return None
+
+class CopycatStrategy(TradingStrategy):
+    """
+    Copycat Strategy: Imitate trades of high-performing agents with a one-tick delay.
+    Analyzes the global trade log to find agents whose trades tend to be followed by 
+    favorable price moves, and mimics their actions if confidence is high.
+    """
+    def __init__(self, memory=10, decay=0.9, threshold=1.0, copy_prob=0.9):
+        # memory: number of ticks to look back for scoring (if using windowed approach)
+        # decay: factor for exponential decay of past performance contributions
+        # threshold: minimum score required to trigger imitation (confidence level)
+        # copy_prob: probability of actually executing the mimic trade when signaled
+        self.memory = memory
+        self.decay = decay
+        self.threshold = threshold
+        self.copy_prob = copy_prob
+        self.agent_scores = {}  # performance scores for other agents
+
+    def decide_action(self, agent, model):
+        current_tick = model.tick
+        if current_tick < 2:
+            return None  # Not enough data yet to make a decision
+
+        # Step 1: Update performance scores using last tick's trade outcomes
+        last_tick = current_tick - 1
+        price_prev = model.price_history[-1]        # Price at end of last_tick
+        price_prev2 = model.price_history[-2] if len(model.price_history) > 1 else model.last_price
+        price_change = price_prev - price_prev2     # Price movement during last tick
+
+        # Traverse trade log for last tick to evaluate each trade's success
+        for (tick, trader_id, strat_name, action, units, trade_price) in model.trade_log:
+            if tick != last_tick:
+                continue  # only interested in trades from last tick
+            # Determine if this trade was profitable given the price change by end of last_tick
+            outcome = 0.0
+            if action == "buy" and price_prev > trade_price:
+                outcome = 1.0  # price went up after buy
+            elif action == "sell" and price_prev < trade_price:
+                outcome = 1.0  # price went down after sell
+            else:
+                outcome = -0.5  # trade did not precede an expected favorable move (penalize slightly)
+
+            # Update score for that trader (decay previous score)
+            old_score = self.agent_scores.get(trader_id, 0.0)
+            new_score = old_score * self.decay + outcome
+            self.agent_scores[trader_id] = new_score
+
+        # Step 2: Identify the top-performing agent from last tick's trades
+        target_id = None
+        target_action = None
+        target_units = 0
+        top_score = self.threshold
+        for (tick, trader_id, strat_name, action, units, trade_price) in model.trade_log:
+            if tick != last_tick:
+                continue
+            # Skip self or other copycats if desired (to avoid circular imitation)
+            if trader_id == agent.unique_id:
+                continue
+            score = self.agent_scores.get(trader_id, 0.0)
+            if score >= top_score:
+                # Prefer the agent with the highest score above threshold
+                if score > top_score or target_id is None:
+                    target_id = trader_id
+                    target_action = action
+                    target_units = units
+                    top_score = score
+
+        if target_id is None:
+            return None  # No agent to copy this tick (hold)
+
+        # Step 3: Decide whether to mimic the trade with one-tick delay
+        # Introduce a bit of noise: only copy with a certain probability
+        if random.random() > self.copy_prob:
+            return None  # skip this time (noise in behavior)
+
+        # Possibly vary the units slightly (+/- 10%)
+        variation = random.uniform(0.9, 1.1)
+        mimic_units = max(1, int(target_units * variation))
+        return (target_action, mimic_units)
+

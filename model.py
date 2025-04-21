@@ -2,11 +2,11 @@ import random
 from mesa import Model
 from mesa.datacollection import DataCollector
 from agents import TraderAgent
-from strategies import TrendFollowingStrategy, MeanReversionStrategy, MomentumStrategy, BreakoutStrategy, ValueInvestingStrategy, ArbitrageStrategy
+from strategies import TrendFollowingStrategy, MeanReversionStrategy, MomentumStrategy, BreakoutStrategy, ValueInvestingStrategy, ArbitrageStrategy, CopycatStrategy
 from logger import TradeLogger
 
 class AssetMarket(Model):
-    def __init__(self, initial_price=100.0, price_impact=1, num_agents=100, num_arbitrage_agents=1):
+    def __init__(self, initial_price=100.0, price_impact=1, num_agents=100, num_arbitrage_agents=1, num_copycat_agents=5):
         super().__init__()
         self.initial_price = initial_price
         self.price = initial_price
@@ -36,6 +36,14 @@ class AssetMarket(Model):
             strategy = ArbitrageStrategy()
             agent = TraderAgent(agent_id, self, strategy)
             self.agents.add(agent)
+        
+         # Create copycat agents with the CopycatStrategy
+        for k in range(num_copycat_agents):
+            agent_id = num_agents + num_arbitrage_agents + k
+            strategy = CopycatStrategy()
+            agent = TraderAgent(agent_id, self, strategy)
+            self.agents.add(agent)
+
 
         self.datacollector = DataCollector(
             model_reporters={

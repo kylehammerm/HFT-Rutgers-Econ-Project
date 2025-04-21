@@ -2,9 +2,9 @@ from model import AssetMarket
 import matplotlib.pyplot as plt
 
 # Initialize the model with desired parameters (including one arbitrage agent by default).
-model = AssetMarket(initial_price=100.0, price_impact=.001, num_agents=100, num_arbitrage_agents=1)
+model = AssetMarket(initial_price=100.0, price_impact=.01, num_agents=100, num_arbitrage_agents=1)
 
-for _ in range(500):
+for _ in range(2000):
     model.step()
 
 # Retrieve collected data.
