@@ -1,19 +1,18 @@
-"""
-Configuration for arbitrage detection system
-"""
+# Configuration parameters for ArbitrageStrategy detection rules
 
-# Smoothing factor for exponential smoothing (alpha in [0,1])
-ALPHA_SMOOTHING = 0.5
+# Trading cycle parameters (tuned to known cycle length and offsets)
+CYCLE_LENGTH = 10
+# Offsets within the cycle considered likely points of high activity (e.g., start/end of cycles)
+CYCLE_OFFSETS = [1, 9]
 
-# Weights for each heuristic rule in the combined score
+# Weights for combining rule scores (should sum to 1.0 ideally)
 WEIGHTS = {
-    'RoundTripProfitRule': 1.0,
-    'SpreadCaptureRule': 1.0,
-    'VWAPArbitrageRule': 1.0,
-    'PriceImpactRule': 1.0,
-    'InventoryTurnoverRule': 1.0,
+    'AggressiveBuyRule': 0.25,
+    'AggressiveSellRule': 0.25,
+    'CycleAlignmentRule': 0.25,
+    'DeviationRule': 0.25
 }
 
-# Input and output file paths (optional customization)
-INPUT_FILE = 'data/trade_ledger_detailed.csv'
-OUTPUT_FILE = 'data/suspicion_scores.csv'
+# Input and output file paths
+TRADE_LEDGER_FILE = 'data/trade_ledger_detailed.csv'
+OUTPUT_FILE = 'data/arbitrage_probabilities.csv'
