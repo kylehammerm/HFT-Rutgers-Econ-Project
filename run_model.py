@@ -6,7 +6,7 @@ import pandas as pd
 
 # Initialize and run the model
 model = AssetMarket(initial_price=100.0, price_impact=0.001, num_agents=100, num_arbitrage_agents=1)
-for _ in range(500):
+for _ in range(2000):
     model.step()
 
 # Export price and wealth
